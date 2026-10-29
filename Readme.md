@@ -7,8 +7,10 @@ A bounded .NET 10 console prototype for enrollment, dropping, and FIFO waitlist 
 Install the .NET 10 SDK. From the repository root:
 
 ```powershell
+dotnet restore CourseWaitlist.sln
+dotnet build CourseWaitlist.sln --no-restore
+dotnet test CourseWaitlist.sln --no-build
 dotnet run --project src/CourseWaitlist -- 2
-dotnet test tests/CourseWaitlist.Tests
 ```
 
 The optional run argument sets a positive seat capacity (default: `2`). At the prompt, use `enroll <learner-id> <true|false>`, `drop <learner-id>`, `status`, or `quit`. The boolean represents whether the learner satisfies the offering's single prerequisite.
@@ -34,7 +36,7 @@ The in-memory lock protects concurrent calls within one process only. There is n
 
 **Files and decisions informed:** `EnrollmentService.cs` implements the service boundary, lock, duplicate guards, eligibility checks, and skip-and-discard promotion policy. `EnrollmentServiceTests.cs` covers normal capacity, full offering, duplicates, FIFO promotion, prerequisite failure, invalid/repeated drops, and concurrent calls. This README records the assumptions and tradeoffs.
 
-**Independent verification:** Tests assert the resulting enrolled/waitlist snapshots and promotion identity, rather than relying only on result messages. A concurrency test checks the capacity and one-active-record invariants across 100 parallel enrollments. The intended verification command is `dotnet test tests/CourseWaitlist.Tests`; it could not be executed in the authoring environment because `dotnet` is not installed. Run that command with the .NET 10 SDK before relying on the implementation.
+**Independent verification:** Tests assert the resulting enrolled/waitlist snapshots and promotion identity, rather than relying only on result messages. A concurrency test checks the capacity and one-active-record invariants across 100 parallel enrollments. The .NET 10 SDK is installed (`10.0.403`), but tests could not be run from the authoring shell because this GitHub VFS workspace is not available there as a local filesystem checkout. Run `dotnet test CourseWaitlist.sln` from a terminal opened at the repository root.
 
 ## Limitations
 

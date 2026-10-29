@@ -17,7 +17,8 @@ The optional run argument sets a positive seat capacity (default: `2`). At the p
 
 ## Design
 
-- `EnrollmentService` owns one offering's state and exposes enrollment, drop, and detached state snapshots. The console is a thin adapter; the service has no persistence or identity dependency.
+- `IEnrollmentService.cs` defines the service contract separately from `EnrollmentService.cs`, which owns one offering's state and implements it. `ConsoleApplication` receives the contract through its constructor, keeping command handling and presentation separate from enrollment rules.
+- Enrollment and drop results expose domain statuses; user-facing messages are formatted by the console adapter. Offering snapshots contain detached, read-only collections.
 - Learner IDs are trimmed and compared case-insensitively. A learner may have at most one active record: enrolled or waitlisted.
 - Capacity invariant: the enrolled count never exceeds the positive configured capacity. Enrollment and drop/promotion are atomic under one private lock.
 - An eligible learner takes a seat when available. If full, each new valid learner request is queued once, including a request whose prerequisite is currently unmet. Eligibility is recorded with that request.
@@ -34,11 +35,10 @@ The in-memory lock protects concurrent calls within one process only. There is n
 
 **Review decision:** The service boundary, process-local lock, FIFO ordering, and focused tests were accepted. Eligibility is captured on the waitlist request and checked from that stored value during promotion; this is a deliberate simplification because no prerequisite system exists in the starter. Persistence and frontend work were omitted per the scope boundary.
 
-**Files and decisions informed:** `EnrollmentService.cs` implements the service boundary, lock, duplicate guards, eligibility checks, and skip-and-discard promotion policy. `EnrollmentServiceTests.cs` covers normal capacity, full offering, duplicates, FIFO promotion, prerequisite failure, invalid/repeated drops, and concurrent calls. This README records the assumptions and tradeoffs.
+**Files and decisions informed:** `IEnrollmentService.cs` defines the injected service contract. `EnrollmentService.cs` implements enrollment rules, state management, locking, duplicate guards, eligibility checks, and skip-and-discard promotion policy. `ConsoleApplication.cs` handles console commands and formats domain statuses. The test suite covers normal capacity, full offering, duplicates, FIFO promotion, prerequisite failure, invalid/repeated drops, read-only snapshots, console behavior, and concurrent calls. This README records the assumptions and tradeoffs.
 
-**Independent verification:** Tests assert the resulting enrolled/waitlist snapshots and promotion identity, rather than relying only on result messages. A concurrency test checks the capacity and one-active-record invariants across 100 parallel enrollments. The .NET 10 SDK is installed (`10.0.403`), but tests could not be run from the authoring shell because this GitHub VFS workspace is not available there as a local filesystem checkout. Run `dotnet test CourseWaitlist.sln` from a terminal opened at the repository root.
+**Independent verification:** Tests assert the resulting enrolled/waitlist snapshots and promotion identity, rather than relying only on result statuses. Concurrency tests check capacity and one-active-record invariants across parallel enrollments, including repeated requests for the same learner. Run `dotnet test CourseWaitlist.sln` from the repository root to execute the complete suite.
 
 ## Limitations
 
 Prerequisite status is supplied by the caller and frozen when a full-offering request is queued; there is no registrar integration to refresh it. The CLI process is the store, so restart loses all records. The service lock is process-local and does not provide durable or distributed transaction guarantees.
-

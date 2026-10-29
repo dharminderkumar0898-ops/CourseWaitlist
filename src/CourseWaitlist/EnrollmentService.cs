@@ -17,16 +17,16 @@ public enum DropStatus
     InvalidLearnerId
 }
 
-public sealed record EnrollmentResult(EnrollmentStatus Status, string Message);
+public sealed record EnrollmentResult(EnrollmentStatus Status);
 
-public sealed record DropResult(DropStatus Status, string? PromotedLearnerId, string Message);
+public sealed record DropResult(DropStatus Status, string? PromotedLearnerId);
 
 public sealed record OfferingSnapshot(
     int Capacity,
     IReadOnlyList<string> EnrolledLearners,
     IReadOnlyList<string> WaitlistedLearners);
 
-public sealed class EnrollmentService
+public sealed class EnrollmentService : IEnrollmentService
 {
     private readonly object _gate = new();
     private readonly int _capacity;
@@ -44,35 +44,35 @@ public sealed class EnrollmentService
     {
         if (!TryNormalizeLearnerId(learnerId, out var normalizedId))
         {
-            return new(EnrollmentStatus.InvalidLearnerId, "Learner ID must not be blank.");
+            return new(EnrollmentStatus.InvalidLearnerId);
         }
 
         lock (_gate)
         {
             if (_enrolled.Contains(normalizedId))
             {
-                return new(EnrollmentStatus.AlreadyEnrolled, "Learner is already enrolled.");
+                return new(EnrollmentStatus.AlreadyEnrolled);
             }
 
             if (_waitlisted.Contains(normalizedId))
             {
-                return new(EnrollmentStatus.AlreadyWaitlisted, "Learner is already waitlisted.");
+                return new(EnrollmentStatus.AlreadyWaitlisted);
             }
 
             if (_enrolled.Count < _capacity)
             {
                 if (!prerequisiteSatisfied)
                 {
-                    return new(EnrollmentStatus.PrerequisiteNotMet, "The course prerequisite is not satisfied.");
+                    return new(EnrollmentStatus.PrerequisiteNotMet);
                 }
 
                 _enrolled.Add(normalizedId);
-                return new(EnrollmentStatus.Enrolled, "Learner enrolled.");
+                return new(EnrollmentStatus.Enrolled);
             }
 
             _waitlist.Enqueue(new WaitlistEntry(normalizedId, prerequisiteSatisfied));
             _waitlisted.Add(normalizedId);
-            return new(EnrollmentStatus.Waitlisted, "Course is full; learner added to the waitlist.");
+            return new(EnrollmentStatus.Waitlisted);
         }
     }
 
@@ -80,14 +80,14 @@ public sealed class EnrollmentService
     {
         if (!TryNormalizeLearnerId(learnerId, out var normalizedId))
         {
-            return new(DropStatus.InvalidLearnerId, null, "Learner ID must not be blank.");
+            return new(DropStatus.InvalidLearnerId, null);
         }
 
         lock (_gate)
         {
             if (!_enrolled.Remove(normalizedId))
             {
-                return new(DropStatus.NotEnrolled, null, "Learner is not enrolled.");
+                return new(DropStatus.NotEnrolled, null);
             }
 
             string? promotedLearnerId = null;
@@ -103,10 +103,7 @@ public sealed class EnrollmentService
                 promotedLearnerId = candidate.LearnerId;
             }
 
-            var message = promotedLearnerId is null
-                ? "Learner dropped; no eligible waitlisted learner was promoted."
-                : $"Learner dropped; {promotedLearnerId} was promoted from the waitlist.";
-            return new(DropStatus.Dropped, promotedLearnerId, message);
+            return new(DropStatus.Dropped, promotedLearnerId);
         }
     }
 
@@ -114,7 +111,10 @@ public sealed class EnrollmentService
     {
         lock (_gate)
         {
-            return new OfferingSnapshot(_capacity, _enrolled.ToArray(), _waitlist.Select(entry => entry.LearnerId).ToArray());
+            return new OfferingSnapshot(
+                _capacity,
+                Array.AsReadOnly(_enrolled.ToArray()),
+                Array.AsReadOnly(_waitlist.Select(entry => entry.LearnerId).ToArray()));
         }
     }
 
